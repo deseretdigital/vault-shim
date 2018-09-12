@@ -60,9 +60,11 @@ run() {
     reqs
     fetch
 
+    local file_tkn=$(grep -Eo '^token\s+([^\s]+)$' ${CWD}/.priv/${VT:-root}.tkn | awk '{print $2}')
+
     export VAULT_CAPATH=${VAULT_CAPATH:-"/etc/pki/ddm/server_bundle.pem"}
     export VAULT_ADDR=${VAULT_ADDR:-"https://vault.ddm.io:8200"}
-    export VAULT_TOKEN=$(grep -Eo '^token\s+([^\s]+)$' ${CWD}/.priv/${VT:-root}.tkn | awk '{print $2}')
+    export VAULT_TOKEN=${VAULT_TOKEN:-${file_tkn}}
 
     ${CWD}/.vault/vault ${@}
 }
