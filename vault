@@ -33,6 +33,10 @@ reqs() {
     which bsdtar 2>&1>/dev/null || apt install -y libarchive-tools
 
     [ -d "${CWD}/.vault" ] || mkdir -p ${CWD}/.vault
+    [ -d "${CWD}/.priv"  ] || mkdir -p ${CWD}/.priv
+
+    # Enforce security on the .priv directory
+    chmod -R 0600 ${CWD}/.priv
 }
 
 fetch() {
