@@ -1,0 +1,67 @@
+#!/bin/bash -
+CWD="$(cd "$(dirname "${BASH_SOURCE[0]}")";pwd -P)"
+
+version_compare() {
+    if [[ $1 =~ ^([0-9]+\.?)+$ && $2 =~ ^([0-9]+\.?)+$ ]]; then
+        local l=(${1//./ }) r=(${2//./ }) s=${#l[@]}; [[ ${#r[@]} -gt ${#l[@]} ]] && s=${#r[@]}
+
+        for i in $(seq 0 $((s - 1))); do
+            [[ ${l[$i]} -gt ${r[$i]} ]] && return 1
+            [[ ${l[$i]} -lt ${r[$i]} ]] && return 2
+        done
+
+        return 0
+    else
+        echo "Invalid version number given"
+        exit 1
+    fi
+}
+
+version() {
+    local op; version_compare $1 $3
+    case $? in
+        0) op='=';;
+        1) op='>';;
+        2) op='<';;
+    esac
+    [[ $2 == *$op* ]] && return 0 || return 1
+}
+
+reqs() {
+    which jq     2>&1>/dev/null || apt install -y jq
+    which curl   2>&1>/dev/null || apt install -y curl
+    which bsdtar 2>&1>/dev/null || apt install -y libarchive-tools
+
+    [ -d "${CWD}/.vault" ] || mkdir -p ${CWD}/.vault
+}
+
+fetch() {
+    local latest=$(V=$(curl -sSL https://api.github.com/repos/hashicorp/vault/tags | jq -r .[0].name);echo ${V##v})
+    local current="0.0.0"
+
+    if [ -x "${CWD}/.vault/vault" ]; then
+        current=$(${CWD}/.vault/vault -v | grep -Po '[0-9]+(\.[0-9]+)+')
+    fi
+
+    #
+    # Download Vault if out of date
+    if version "${latest}" '>' "${current}"; then
+        echo "Downloading Vault ${latest}..."
+        curl -fsSL https://releases.hashicorp.com/vault/${latest}/vault_${latest}_linux_amd64.zip | bsdtar -C ${CWD}/.vault -xf-
+        chmod +x ${CWD}/.vault/vault
+    fi
+}
+
+run() {
+    reqs
+    fetch
+
+    export VAULT_CAPATH=${VAULT_CAPATH:-"/etc/pki/ddm/server_bundle.pem"}
+    export VAULT_ADDR=${VAULT_ADDR:-"https://vault.ddm.io:8200"}
+    export VAULT_TOKEN=$(grep -Eo '^token\s+([^\s]+)$' ${CWD}/.priv/${VT:-root}.tkn | awk '{print $2}')
+
+    ${CWD}/.vault/vault ${@}
+}
+
+run $@
+
